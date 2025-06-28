@@ -21,7 +21,7 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/alm-dashboard.git
+   git clone https://github.com/chris-dewitt/alm-dashboard.git
    cd alm-dashboard
 Create and activate a Python virtual environment (recommended):
 
