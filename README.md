@@ -6,20 +6,21 @@ This project is designed as a professional portfolio piece for asset-liability m
 
 ## Core Features
 
-- **Balance Sheet Overview**: Asset, liability, and equity summary with portfolio composition charts.
+- **Balance Sheet Overview**: Asset, liability, and equity summary with yield/spread KPIs and portfolio composition charts.
 - **Liquidity Gap Table**: Maturity-bucketed inflows, outflows, gaps, and cumulative gap exposure.
 - **Cash Flow Gap Analysis**: Monthly cash flow estimates across maturity buckets.
-- **Funds Transfer Pricing**: Product-level FTP rate mapping and net FTP contribution.
-- **Interest Rate Risk Simulation**: Scenario-based NII and EVE sensitivity analysis.
-- **Duration Gap Analysis**: Weighted average asset duration, liability duration, and duration gap.
-- **IRR/FX Derivatives Book**: Sample derivative exposures with mark-to-market and delta summary.
-- **Scenario Builder**: Custom yield curve scenarios with estimated DV01 impact.
+- **Funds Transfer Pricing**: Product-level FTP rate mapping, net FTP contribution, and contribution charts.
+- **Interest Rate Risk Simulation**: Scenario-based NII and EVE sensitivity analysis with paired charts.
+- **Duration Gap Analysis**: Classic leverage-adjusted duration gap (`DA − (L/A)×DL`) with approximate ΔEVE.
+- **IRR/FX Derivatives Book**: Sample derivative exposures with mark-to-market, delta notional, and asset-class summary.
+- **Scenario Builder**: Custom yield curve scenarios with estimated DV01 impact and saved-scenario management.
 
 ## Repository Structure
 
 ```text
 ALM-Dashboard/
 ├── ALM_Dashboard.py          # Main Streamlit entry point
+├── alm_utils.py              # Shared validation, bucketing, and KPI helpers
 ├── liquidity_gap.py          # Liquidity gap analysis module
 ├── cash_flow_gap.py          # Cash flow gap analysis module
 ├── ftp.py                    # Funds transfer pricing module
@@ -27,6 +28,10 @@ ALM-Dashboard/
 ├── duration_gap.py           # Duration gap analysis module
 ├── derivatives_book.py       # IRR/FX derivatives exposure module
 ├── scenario_builder.py       # Custom rate scenario builder
+├── data/
+│   └── sample_balance_sheet.csv
+├── tests/
+│   └── test_alm_calculations.py
 ├── requirements.txt          # Python dependencies
 └── README.md                 # Project documentation
 ```
@@ -68,9 +73,16 @@ pip install -r requirements.txt
 streamlit run ALM_Dashboard.py
 ```
 
+### 5. Run unit tests (optional)
+
+```bash
+pip install pytest
+pytest -q
+```
+
 ## Input Data Schema
 
-The app runs with a built-in sample balance sheet, but uploaded CSV files should include the following columns:
+The app runs with a built-in sample balance sheet (`data/sample_balance_sheet.csv`), but uploaded CSV files should include the following columns:
 
 | Column | Description | Example |
 |---|---|---|
@@ -88,6 +100,7 @@ The app runs with a built-in sample balance sheet, but uploaded CSV files should
 - Estimate liquidity gaps and cumulative funding mismatches.
 - Simulate NII and EVE sensitivity under rate shock scenarios.
 - Show how FTP assumptions can change product profitability analysis.
+- Explain leverage-adjusted duration gap and approximate equity sensitivity.
 
 ## Notes and Limitations
 
@@ -100,6 +113,7 @@ This is an educational and portfolio-oriented analytics dashboard. It uses simpl
 - pandas
 - NumPy
 - Plotly
+- pytest (tests)
 
 ## Author
 

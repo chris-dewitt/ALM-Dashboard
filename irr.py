@@ -53,11 +53,24 @@ def show(balance_sheet, balance_sensitivity):
         use_container_width=True,
     )
 
-    st.subheader("NII Sensitivity Chart")
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=result_df.index, y=result_df["Δ NII ($)"], name="Change in NII"))
-    fig.update_layout(yaxis_title="Δ NII ($)", xaxis_title="Scenario")
-    st.plotly_chart(fig, use_container_width=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.subheader("NII Sensitivity")
+        fig_nii = go.Figure()
+        fig_nii.add_trace(
+            go.Bar(x=result_df.index, y=result_df["Δ NII ($)"], name="Change in NII")
+        )
+        fig_nii.update_layout(yaxis_title="Δ NII ($)", xaxis_title="Scenario")
+        st.plotly_chart(fig_nii, use_container_width=True)
+
+    with col_b:
+        st.subheader("EVE Sensitivity")
+        fig_eve = go.Figure()
+        fig_eve.add_trace(
+            go.Bar(x=result_df.index, y=result_df["Δ EVE ($)"], name="Change in EVE")
+        )
+        fig_eve.update_layout(yaxis_title="Δ EVE ($)", xaxis_title="Scenario")
+        st.plotly_chart(fig_eve, use_container_width=True)
 
     st.caption(
         "This module uses simplified rate-shock and duration assumptions for demonstration purposes. "

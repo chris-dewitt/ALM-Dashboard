@@ -1,35 +1,14 @@
-import streamlit as st
+import io
+from pathlib import Path
+
 import pandas as pd
 import plotly.graph_objs as go
-import io
-import base64
+import streamlit as st
 
+from alm_utils import summarize_balance_sheet, validate_balance_sheet
 from scenario_builder import scenario_builder
 
-st.set_page_config(page_title="ALM Dashboard", layout="wide")
-
-REQUIRED_COLUMNS = [
-    "Product",
-    "Type",
-    "Amount ($)",
-    "Rate (%)",
-    "Duration (Years)",
-    "Maturity (Months)",
-]
-
-NUMERIC_COLUMNS = ["Amount ($)", "Rate (%)", "Duration (Years)", "Maturity (Months)"]
-
-SAMPLE_BALANCE_SHEET_CSV = """Product,Type,Amount ($),Rate (%),Duration (Years),Maturity (Months)
-Fixed Mortgage,Asset,5500000,4.0,5,60
-HELOC,Asset,2700000,5.5,3,12
-Commercial Loan,Asset,4200000,6.0,4,36
-Investment Securities,Asset,6000000,3.0,7,84
-Core Checking,Liability,3500000,0.1,1,36
-Savings Account,Liability,2800000,0.3,2,24
-Time Deposits,Liability,4000000,2.0,3,36
-FHLB Advances,Liability,1500000,4.2,1.5,18
-Fed Funds Purchased,Liability,1000000,5.0,0.5,3
-"""
+SAMPLE_CSV_PATH = Path(__file__).resolve().parent / "data" / "sample_balance_sheet.csv"
 
 BALANCE_SENSITIVITY = {
     "Fixed Mortgage": -0.01,
@@ -55,47 +34,18 @@ MODULES = [
 ]
 
 
-def get_csv_download_link(csv_string, filename="sample_balance_sheet.csv"):
-    b64 = base64.b64encode(csv_string.encode()).decode()
-    return (
-        f'<a href="data:file/csv;base64,{b64}" download="{filename}">'
-        "Download Sample Balance Sheet CSV</a>"
-    )
+def load_sample_csv_text() -> str:
+    return SAMPLE_CSV_PATH.read_text(encoding="utf-8")
 
 
-def validate_balance_sheet(df):
-    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
+def load_balance_sheet_data(uploaded_file) -> pd.DataFrame:
+    sample_text = load_sample_csv_text()
 
-    validated_df = df[REQUIRED_COLUMNS].copy()
-
-    for col in NUMERIC_COLUMNS:
-        validated_df[col] = pd.to_numeric(validated_df[col], errors="coerce")
-
-    if validated_df[NUMERIC_COLUMNS].isna().any().any():
-        raise ValueError("One or more numeric columns contains blank or non-numeric values.")
-
-    allowed_types = {"Asset", "Liability"}
-    invalid_types = sorted(set(validated_df["Type"]) - allowed_types)
-    if invalid_types:
-        raise ValueError("Type must be either 'Asset' or 'Liability'.")
-
-    if (validated_df["Amount ($)"] < 0).any():
-        raise ValueError("Amount ($) values must be non-negative.")
-
-    if (validated_df["Maturity (Months)"] < 0).any():
-        raise ValueError("Maturity (Months) values must be non-negative.")
-
-    return validated_df
-
-
-def load_balance_sheet_data(uploaded_file):
     if uploaded_file is not None:
         raw_df = pd.read_csv(uploaded_file)
         source = "Custom balance sheet loaded"
     else:
-        raw_df = pd.read_csv(io.StringIO(SAMPLE_BALANCE_SHEET_CSV))
+        raw_df = pd.read_csv(io.StringIO(sample_text))
         source = "Using default sample balance sheet"
 
     try:
@@ -103,7 +53,7 @@ def load_balance_sheet_data(uploaded_file):
     except ValueError as exc:
         st.sidebar.error(f"CSV validation failed: {exc}")
         st.sidebar.info("Falling back to default sample balance sheet.")
-        df = validate_balance_sheet(pd.read_csv(io.StringIO(SAMPLE_BALANCE_SHEET_CSV)))
+        df = validate_balance_sheet(pd.read_csv(io.StringIO(sample_text)))
     else:
         if uploaded_file is not None:
             st.sidebar.success(source)
@@ -113,40 +63,33 @@ def load_balance_sheet_data(uploaded_file):
     return df
 
 
-st.sidebar.markdown("## Upload Balance Sheet CSV")
-uploaded_file = st.sidebar.file_uploader("Upload CSV file", type="csv")
-st.sidebar.markdown("---")
-st.sidebar.markdown("## Sample Data")
-st.sidebar.markdown(get_csv_download_link(SAMPLE_BALANCE_SHEET_CSV), unsafe_allow_html=True)
-
-balance_sheet = load_balance_sheet_data(uploaded_file)
-
-selected_module = st.sidebar.selectbox("Choose Module", MODULES, index=0)
-
-st.title("ALM Dashboard")
-st.caption("Asset-liability management analytics for liquidity, interest rate risk, FTP, and scenario analysis.")
-
-if selected_module == "Overview":
+def render_overview(balance_sheet: pd.DataFrame) -> None:
     st.header("Balance Sheet Overview")
-
     st.markdown(
         """
-        This dashboard provides an interactive overview of the Asset-Liability Management (ALM) balance sheet.
-        Use the sidebar to upload a custom balance sheet CSV or explore the default sample portfolio.
+        Interactive Asset-Liability Management (ALM) overview of the current portfolio.
+        Upload a custom balance sheet CSV in the sidebar, or explore the default sample book.
         """
     )
 
-    total_assets = balance_sheet.loc[balance_sheet["Type"] == "Asset", "Amount ($)"].sum()
-    total_liabs = balance_sheet.loc[balance_sheet["Type"] == "Liability", "Amount ($)"].sum()
-    equity = total_assets - total_liabs
+    kpis = summarize_balance_sheet(balance_sheet)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Assets", f"${total_assets:,.0f}")
-    col2.metric("Total Liabilities", f"${total_liabs:,.0f}")
-    col3.metric("Equity", f"${equity:,.0f}")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Assets", f"${kpis['total_assets']:,.0f}")
+    col2.metric("Total Liabilities", f"${kpis['total_liabilities']:,.0f}")
+    col3.metric("Equity", f"${kpis['equity']:,.0f}")
+    col4.metric("Equity Ratio", f"{kpis['equity_ratio']:.1f}%")
+
+    col5, col6, col7, col8 = st.columns(4)
+    col5.metric("Asset Yield", f"{kpis['asset_yield']:.2f}%")
+    col6.metric("Liability Cost", f"{kpis['liability_cost']:.2f}%")
+    col7.metric("Net Interest Spread", f"{kpis['net_interest_spread']:.2f}%")
+    col8.metric("Simple Duration Gap", f"{kpis['simple_duration_gap']:.2f} yrs")
 
     pie_data = balance_sheet.groupby("Type", observed=False)["Amount ($)"].sum()
-    fig_pie = go.Figure(data=[go.Pie(labels=pie_data.index, values=pie_data.values, hole=0.3)])
+    fig_pie = go.Figure(
+        data=[go.Pie(labels=pie_data.index, values=pie_data.values, hole=0.35)]
+    )
     fig_pie.update_layout(title="Balance Sheet Composition by Type")
     st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -154,7 +97,9 @@ if selected_module == "Overview":
     fig_bar = go.Figure()
     for balance_type in bar_df["Type"].unique():
         df_sub = bar_df[bar_df["Type"] == balance_type]
-        fig_bar.add_trace(go.Bar(x=df_sub["Product"], y=df_sub["Amount ($)"], name=balance_type))
+        fig_bar.add_trace(
+            go.Bar(x=df_sub["Product"], y=df_sub["Amount ($)"], name=balance_type)
+        )
     fig_bar.update_layout(
         title="Balance Sheet Balances by Product",
         barmode="group",
@@ -162,29 +107,71 @@ if selected_module == "Overview":
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
-elif selected_module == "Liquidity Gap Table":
-    import liquidity_gap
-    liquidity_gap.show(balance_sheet)
+    st.subheader("Portfolio Detail")
+    st.dataframe(
+        balance_sheet.style.format(
+            {
+                "Amount ($)": "${:,.0f}",
+                "Rate (%)": "{:.2f}",
+                "Duration (Years)": "{:.2f}",
+                "Maturity (Months)": "{:.0f}",
+            }
+        ),
+        use_container_width=True,
+    )
 
-elif selected_module == "Cash Flow Gap Analysis":
-    import cash_flow_gap
-    cash_flow_gap.show(balance_sheet)
 
-elif selected_module == "FTP (Funds Transfer Pricing)":
-    import ftp
-    ftp.show(balance_sheet)
+def main() -> None:
+    st.set_page_config(page_title="ALM Dashboard", layout="wide")
 
-elif selected_module == "Interest Rate Risk (IRR)":
-    import irr
-    irr.show(balance_sheet, BALANCE_SENSITIVITY)
+    st.sidebar.markdown("## Upload Balance Sheet CSV")
+    uploaded_file = st.sidebar.file_uploader("Upload CSV file", type="csv")
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## Sample Data")
+    st.sidebar.download_button(
+        label="Download Sample Balance Sheet CSV",
+        data=load_sample_csv_text(),
+        file_name="sample_balance_sheet.csv",
+        mime="text/csv",
+    )
 
-elif selected_module == "Duration Gap Analysis":
-    import duration_gap
-    duration_gap.show(balance_sheet)
+    balance_sheet = load_balance_sheet_data(uploaded_file)
+    selected_module = st.sidebar.selectbox("Choose Module", MODULES, index=0)
 
-elif selected_module == "IRR/FX Derivatives Book":
-    import derivatives_book
-    derivatives_book.show()
+    st.title("ALM Dashboard")
+    st.caption(
+        "Asset-liability management analytics for liquidity, interest rate risk, FTP, and scenario analysis."
+    )
 
-elif selected_module == "Scenario Builder":
-    scenario_builder()
+    if selected_module == "Overview":
+        render_overview(balance_sheet)
+    elif selected_module == "Liquidity Gap Table":
+        import liquidity_gap
+
+        liquidity_gap.show(balance_sheet)
+    elif selected_module == "Cash Flow Gap Analysis":
+        import cash_flow_gap
+
+        cash_flow_gap.show(balance_sheet)
+    elif selected_module == "FTP (Funds Transfer Pricing)":
+        import ftp
+
+        ftp.show(balance_sheet)
+    elif selected_module == "Interest Rate Risk (IRR)":
+        import irr
+
+        irr.show(balance_sheet, BALANCE_SENSITIVITY)
+    elif selected_module == "Duration Gap Analysis":
+        import duration_gap
+
+        duration_gap.show(balance_sheet)
+    elif selected_module == "IRR/FX Derivatives Book":
+        import derivatives_book
+
+        derivatives_book.show()
+    elif selected_module == "Scenario Builder":
+        scenario_builder()
+
+
+if __name__ == "__main__":
+    main()
