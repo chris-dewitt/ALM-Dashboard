@@ -1,23 +1,30 @@
-import streamlit as st
 import pandas as pd
 import plotly.graph_objs as go
+import streamlit as st
+
+from alm_utils import (
+    MATURITY_BINS_EXTENDED,
+    MATURITY_LABELS_EXTENDED,
+    assign_maturity_bucket,
+    format_currency_columns,
+)
 
 
 def show(balance_sheet):
     st.header("Cash Flow Gap Analysis")
+    st.caption(
+        "Estimated monthly cash-flow run-off by maturity bucket for assets and liabilities."
+    )
 
     cashflow_df = balance_sheet.copy()
-    cashflow_df["Monthly Flow"] = cashflow_df["Amount ($)"] / cashflow_df["Maturity (Months)"].replace(0, 1)
+    cashflow_df["Monthly Flow"] = cashflow_df["Amount ($)"] / cashflow_df[
+        "Maturity (Months)"
+    ].replace(0, 1)
 
-    buckets = [0, 1, 3, 6, 12, 24, 36, 60, 120, float("inf")]
-    bucket_labels = ["0-1M", "1-3M", "3-6M", "6-12M", "1-2Y", "2-3Y", "3-5Y", "5-10Y", ">10Y"]
-
-    cashflow_df["Bucket"] = pd.cut(
+    cashflow_df["Bucket"] = assign_maturity_bucket(
         cashflow_df["Maturity (Months)"],
-        bins=buckets,
-        labels=bucket_labels,
-        right=True,
-        include_lowest=True,
+        bins=MATURITY_BINS_EXTENDED,
+        labels=MATURITY_LABELS_EXTENDED,
     )
 
     inflows = (
@@ -31,18 +38,21 @@ def show(balance_sheet):
         .sum()
     )
 
-    gap_cf_df = pd.DataFrame({
-        "Monthly Inflows ($)": inflows,
-        "Monthly Outflows ($)": outflows,
-    }).fillna(0)
-    gap_cf_df["Net Cash Flow ($)"] = gap_cf_df["Monthly Inflows ($)"] - gap_cf_df["Monthly Outflows ($)"]
+    gap_cf_df = pd.DataFrame(
+        {
+            "Monthly Inflows ($)": inflows,
+            "Monthly Outflows ($)": outflows,
+        }
+    ).fillna(0)
+    gap_cf_df["Net Cash Flow ($)"] = (
+        gap_cf_df["Monthly Inflows ($)"] - gap_cf_df["Monthly Outflows ($)"]
+    )
 
     st.dataframe(
-        gap_cf_df.style.format({
-            "Monthly Inflows ($)": "${:,.0f}",
-            "Monthly Outflows ($)": "${:,.0f}",
-            "Net Cash Flow ($)": "${:,.0f}",
-        }),
+        format_currency_columns(
+            gap_cf_df,
+            ["Monthly Inflows ($)", "Monthly Outflows ($)", "Net Cash Flow ($)"],
+        ),
         use_container_width=True,
     )
 

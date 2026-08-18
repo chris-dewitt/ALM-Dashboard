@@ -1,0 +1,10 @@
+Product,Type,Amount ($),Rate (%),Duration (Years),Maturity (Months)
+Fixed Mortgage,Asset,5500000,4.0,5,60
+HELOC,Asset,2700000,5.5,3,12
+Commercial Loan,Asset,4200000,6.0,4,36
+Investment Securities,Asset,6000000,3.0,7,84
+Core Checking,Liability,3500000,0.1,1,36
+Savings Account,Liability,2800000,0.3,2,24
+Time Deposits,Liability,4000000,2.0,3,36
+FHLB Advances,Liability,1500000,4.2,1.5,18
+Fed Funds Purchased,Liability,1000000,5.0,0.5,3

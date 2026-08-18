@@ -1,19 +1,18 @@
-import streamlit as st
 import pandas as pd
 import plotly.graph_objs as go
+import streamlit as st
+
+from alm_utils import assign_maturity_bucket, format_currency_columns
 
 
 def show(balance_sheet):
     st.header("Liquidity Gap Table")
+    st.caption(
+        "Maturity-bucketed asset inflows versus liability outflows, with cumulative funding gap."
+    )
 
     gap_source = balance_sheet.copy()
-    gap_source["Bucket"] = pd.cut(
-        gap_source["Maturity (Months)"],
-        bins=[0, 1, 3, 6, 12, 24, 36, 60, float("inf")],
-        labels=["0-1M", "1-3M", "3-6M", "6-12M", "1-2Y", "2-3Y", "3-5Y", ">5Y"],
-        right=True,
-        include_lowest=True,
-    )
+    gap_source["Bucket"] = assign_maturity_bucket(gap_source["Maturity (Months)"])
 
     inflows = (
         gap_source.loc[gap_source["Type"] == "Asset"]
@@ -31,12 +30,10 @@ def show(balance_sheet):
     gap_df["Cumulative Gap ($)"] = gap_df["Gap ($)"].cumsum()
 
     st.dataframe(
-        gap_df.style.format({
-            "Inflows ($)": "${:,.0f}",
-            "Outflows ($)": "${:,.0f}",
-            "Gap ($)": "${:,.0f}",
-            "Cumulative Gap ($)": "${:,.0f}",
-        }),
+        format_currency_columns(
+            gap_df,
+            ["Inflows ($)", "Outflows ($)", "Gap ($)", "Cumulative Gap ($)"],
+        ),
         use_container_width=True,
     )
 
@@ -52,3 +49,12 @@ def show(balance_sheet):
     )
     fig.update_layout(title="Liquidity Gap by Maturity Bucket", yaxis_title="USD")
     st.plotly_chart(fig, use_container_width=True)
+
+    min_cum = float(gap_df["Cumulative Gap ($)"].min())
+    if min_cum < 0:
+        st.warning(
+            f"Cumulative funding gap reaches ${min_cum:,.0f}. "
+            "Negative cumulative gaps indicate potential refinancing or liquidity pressure."
+        )
+    else:
+        st.success("Cumulative liquidity gap remains non-negative across all buckets.")
